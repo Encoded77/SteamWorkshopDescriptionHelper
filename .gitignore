@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+
+# Holds GITHUB_TOKEN and the workspace path. Never commit it.
+.env

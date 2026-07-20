@@ -1,0 +1,24 @@
+services:
+  swdh:
+    build: .
+    image: swdh:local
+    volumes:
+      # Only edited directories are mounted; mounting the project root would
+      # shadow /app/node_modules and break every import.
+      - ./src:/app/src
+      - ./editor:/app/editor
+      - ./tsconfig.json:/app/tsconfig.json
+      # The workshop-assets repo, one folder per mod.
+      - ${SWDH_WORKSPACE:-../workshop-assets}:/workspace
+      # Folder holding your mods, for the About/Preview.png export. Defaults to
+      # the workspace, which exposes nothing new.
+      - ${SWDH_MODS:-../workshop-assets}:/mods
+    environment:
+      - GITHUB_TOKEN
+      - SWDH_PROJECT
+      - SWDH_POLL
+      - SWDH_MODS
+    ports:
+      - "5173:5173"
+    # Chromium crashes on larger pages with Docker's default 64MB.
+    shm_size: "1gb"

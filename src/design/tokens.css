@@ -1,0 +1,87 @@
+/*
+ * Design tokens. Templates never hardcode a colour, size or spacing value, so
+ * the identity can be retuned here alone.
+ */
+
+:root {
+  /* ---- Ground: used for wells and scrims, not for the panel itself ----- */
+  --c-ground-900: #0b1015;
+  --c-ground-800: #111922;
+  --c-ground-700: #17212c;
+  --c-ground-600: #1e2b38;
+  --c-ground-500: #273747;
+  --c-ground-400: #34495d;
+
+  /* ---- Ink: tuned against the near-black panel ground ------------------ */
+  --c-ink-100: #e8f0f7;
+  --c-ink-300: #adc0d1;
+  --c-ink-500: #7a8fa3;
+  --c-ink-700: #506275;
+
+  /* ---- Accent (amber, dominant) ---------------------------------------- */
+  --c-accent-400: #ffc35c;
+  --c-accent-500: #efa62c;
+  --c-accent-700: #9a6612;
+
+  /* ---- Signal (cyan, secondary emphasis only) -------------------------- */
+  --c-signal-400: #62d3e6;
+  --c-signal-500: #35b6cf;
+
+  /* ---- Surfaces -------------------------------------------------------- */
+  --panel-bg: var(--c-ground-900);
+  --panel-texture: none;
+  --well-scrim: #000000;
+
+  --c-edge: #273747;
+
+  /* ---- Spacing: 4px base ------------------------------------------------ */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 28px;
+  --s-7: 40px;
+
+  --pad-panel: var(--s-4) var(--s-5);
+
+  /* ---- Type scale (compact density) ------------------------------------ */
+  /* Banner title only; sized so a header reads as a rule, not a box. */
+  /* Multiplies every text size. The Settings tab exposes it; sizes are
+     expressed against it so the base values stay defined only here. */
+  --type-scale: 1;
+
+  --t-display: calc(26px * var(--type-scale));
+  --t-title: calc(19px * var(--type-scale));
+  --t-body: calc(13px * var(--type-scale));
+  --t-small: calc(12px * var(--type-scale));
+  --t-label: calc(10px * var(--type-scale));
+
+  --lh-tight: 1.1;
+  --lh-body: 1.5;
+
+  /* Monospace labels are the identity's signature; the tracking matters. */
+  --tracking-label: 0.18em;
+  --tracking-display: 0.01em;
+
+  /* ---- Preview surface --------------------------------------------------
+   * Previews display small, so type is sized for that, not for the canvas. */
+  --pt-name: calc(52px * var(--type-scale));
+  --pt-tagline: calc(18px * var(--type-scale));
+  --pt-overlay: calc(27px * var(--type-scale));
+  --pt-kicker: calc(12px * var(--type-scale));
+  --pt-flag: calc(15px * var(--type-scale));
+  --preview-pad: 30px;
+  --tick-len-lg: 18px;
+
+  /* ---- Structure -------------------------------------------------------- */
+  --rule-hairline: 1px;
+  --rule-heavy: 3px;
+  --tick-len: 10px;
+  --radius: 0px;
+
+  /* ---- Families --------------------------------------------------------- */
+  --f-display: 'Oxanium', sans-serif;
+  --f-body: 'Barlow', sans-serif;
+  --f-mono: 'IBM Plex Mono', monospace;
+}

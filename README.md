@@ -74,6 +74,9 @@ Add `--project <name>` when the workspace holds more than one mod. With several
 projects and no `--project`, commands refuse rather than guess — publishing to
 the wrong mod would be hard to notice.
 
+The editor switches project from a dropdown in its navbar, so `SWDH_PROJECT` is
+only the initial default there.
+
 `link` accepts a browser URL, an HTTPS or SSH clone URL, or bare `owner/name`,
 and writes `swdh.workspace.json`. With `GITHUB_TOKEN` set it also checks that
 the repo exists, that the token can push, and that the repo is public — jsDelivr
@@ -165,18 +168,61 @@ description keeps pointing at exactly the image it was written against. It is
 also why publishing is inherently two steps: the commit must exist before its
 SHA can appear in `urls.yaml`.
 
-### After publishing, pull
-
-Publishing commits through the GitHub API, so your local clone of
-workshop-assets is immediately behind. Run `git pull` there before committing
-anything yourself, or your next push is rejected. The tool only ever writes
-`<Mod>/out/*.png`, so conflicts are unlikely — but the branch does move.
-
 ### What gets published
 
-Only images with a matching content file. `out/` accumulates stale renders when
-a content file is deleted or renamed, and committing one of those by accident
-would leave a binary in git history permanently.
+The whole project folder, not just its renders. Sources travel with their
+output — publishing only the PNGs left the repo holding images whose content
+files, screenshots and theme were months out of date.
+
+Membership is decided by git, via `ls-files --cached --others
+--exclude-standard`: tracked files plus untracked ones `.gitignore` does not
+exclude. That way the repo's own ignore rules decide what counts as project
+material, rather than a second list here that would drift from them.
+
+Publishing is a **mirror**. A file the repo still holds under the project that
+no longer exists on disk is deleted, which is how a removed content file reaches
+the repo. Deletions are confined to the project's own path prefix.
+
+The one departure from a literal mirror is `out/`, which is filtered against the
+content files rather than taken as found. A render whose content file was
+deleted or renamed is not published, and is removed from the repo if it is
+already there — a binary committed by accident stays in git history permanently.
+It is left alone on disk; only the repo copy goes. Nested paths like
+`out/identity/` are exempt, having no content file by design.
+
+The two generated files are held back into a second commit, because both embed
+the SHA of the first one and cannot be part of it.
+
+Run `publish --dry-run` to see the plan — every update and every deletion —
+without writing anything.
+
+### The clone has to be current
+
+Publishing writes through the GitHub API, so for every path it touches the local
+file wins, and a mirror can delete. If the clone were behind, publishing would
+silently undo whatever the commits it has not seen had changed.
+
+So publish refuses unless the clone sits on the same commit as the branch, and
+says whether to pull or push. Uncommitted changes are fine and expected — that
+is the point — it is the commit underneath them that has to match.
+
+Each publish makes one or two commits, which puts the clone behind again. Every
+project file on disk already matches what was committed, so catching up discards
+nothing:
+
+```bash
+git -C <workspace> checkout -- <Mod>
+git -C <workspace> pull
+```
+
+That is only true straight after a publish. With local edits you have not
+published yet, `checkout` would throw them away — move HEAD instead and keep the
+working tree:
+
+```bash
+git -C <workspace> fetch origin
+git -C <workspace> reset --mixed origin/<branch>
+```
 
 ## Content schema
 
@@ -243,6 +289,9 @@ the directing, since the eye finds the undimmed patch before it finds an outline
         height: 30
         text: Locked by another mod
         side: right     # top | right | bottom | left — defaults to right
+        at:             # optional: place the label anywhere in the image
+          x: 470
+          y: 320
 ```
 
 **Crop tight first.** A detail like a single work-tab cell, inside a full 1920px
@@ -260,12 +309,45 @@ shift every label whenever one string changed. Instead, `side` is yours to
 choose, and the build fails if a label spills off the image or two labels
 overlap — telling you which ones, by their text.
 
+Left to itself, a label pins to the `side` border and centres on its highlight,
+which is what makes two highlights at a similar height collide. `at` places it
+anywhere in the image instead — absolute source-image pixels, the same frame as
+`x`/`y`/`width`/`height`, so a position read off the screenshot means the same
+thing everywhere. Both axes are free, so a label can sit in open space nowhere
+near a border, and several can be stacked in one clear patch.
+
+`at` is the point the leader *touches*, not a corner of the label, and the label
+grows away from it. That is why the leader always meets the label no matter what
+the text does to its width: nothing has to predict its size.
+
+`side` is not "which border it pins to" any more — it is which face of the
+highlight the leader leaves by, and so which face of the label it enters. A
+placed label must lie beyond that face, or the elbow would double back across
+the highlight it is pointing at; the build says so by name if it doesn't. In the
+editor the side turns to follow the label if you drag it past the region, and
+sides the label cannot be reached from are disabled rather than left to fail
+later.
+
+The leader runs out of the highlight perpendicular to its face, along to the
+label, then in — every segment axis-aligned, collapsing to a single line when
+the two already line up. The stub before the turn is 3% of the dimension it
+crosses rather than a fixed pixel count, so the elbow holds its shape at any
+render size, and it is clamped so it never overshoots a label sitting close by.
+
 ### Inline formatting
 
-A deliberately tiny subset, not full Markdown:
+A small subset, not full Markdown:
 
 - `**bold**` renders bold in the primary ink colour.
 - `_highlight_` renders in the accent colour. It is a highlight, not an italic.
+
+Both work in every text slot of every template — titles, kickers, eyebrows,
+taglines, overlays, marks, captions, list items and callout labels included.
+
+Emphasis is relative to what surrounds it, so a slot already set in the accent
+(a card eyebrow, a preview kicker) highlights in bright ink instead, and a slot
+already set in the brightest ink (any title, an overlay) bolds in the accent.
+Either marker therefore always changes something, whatever slot it lands in.
 
 Text is escaped before markers are expanded, so content can never inject markup.
 
@@ -279,9 +361,8 @@ Two things behave differently from description images:
 
 **The canvas is fixed.** Description blocks flow to whatever height they need; a
 preview cannot. Content that does not fit fails the build with the file name and
-the overflow in pixels. Type is deliberately never auto-shrunk — that would make
-font size vary per preview and break the visual consistency the design system
-exists to enforce.
+the overflow in pixels. Type is never auto-shrunk, since that would vary font
+size per preview and break the consistency the design system exists to enforce.
 
 **Type is sized for display, not canvas.** Previews are shown small in the mod
 list and Steam's browse grid, so preview type is far larger than the description
@@ -346,8 +427,8 @@ flag: "1.6"
 ### Test fixture
 
 `assets/screenshots/placeholder.png` is a generated stand-in, gitignored because
-it is ~1.8MB. It is deliberately noisy so that the size limit and quantization
-path are exercised realistically. Recreate it with:
+it is ~1.8MB, and noisy enough to exercise the size limit and quantization path.
+Recreate it with:
 
 ```powershell
 docker compose run --rm --entrypoint npx swdh tsx src/make-placeholder.ts

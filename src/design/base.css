@@ -1,0 +1,235 @@
+/*
+ * Component layer. Every value resolves through a token from tokens.css.
+ * All three components are .swdh-panel with different slot arrangements.
+ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+ * Shared panel primitive
+ * ----------------------------------------------------------------------- */
+
+.swdh-panel {
+  position: relative;
+  width: 100%;
+  background-color: var(--panel-bg);
+  background-image: var(--panel-texture);
+  border: var(--rule-hairline) solid var(--c-edge);
+  border-radius: var(--radius);
+  color: var(--c-ink-300);
+  font-family: var(--f-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  overflow: hidden;
+}
+
+/* Corner ticks: the recurring structural motif. */
+.swdh-panel--ticked::before,
+.swdh-panel--ticked::after {
+  content: '';
+  position: absolute;
+  width: var(--tick-len);
+  height: var(--tick-len);
+  pointer-events: none;
+}
+.swdh-panel--ticked::before {
+  top: 0;
+  left: 0;
+  border-top: var(--rule-hairline) solid var(--c-accent-500);
+  border-left: var(--rule-hairline) solid var(--c-accent-500);
+}
+.swdh-panel--ticked::after {
+  bottom: 0;
+  right: 0;
+  border-bottom: var(--rule-hairline) solid var(--c-accent-500);
+  border-right: var(--rule-hairline) solid var(--c-accent-500);
+}
+
+/* --------------------------------------------------------------------------
+ * Banner — section heading that precedes real text in the description
+ * ----------------------------------------------------------------------- */
+
+.swdh-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  border-left: var(--rule-heavy) solid var(--c-accent-500);
+}
+
+.swdh-banner__title {
+  font-family: var(--f-display);
+  font-size: var(--t-display);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  text-transform: uppercase;
+  color: var(--c-ink-100);
+}
+
+.swdh-banner__kicker {
+  margin-left: auto;
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-ink-700);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+ * Block — explanatory body content
+ * ----------------------------------------------------------------------- */
+
+.swdh-block {
+  padding: var(--pad-panel);
+}
+
+.swdh-block__title,
+.swdh-card__title {
+  font-family: var(--f-display);
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-display);
+  color: var(--c-ink-100);
+}
+
+.swdh-prose > * + * {
+  margin-top: var(--s-3);
+}
+
+/* Global, not scoped to prose: inline formatting works in every text slot —
+   titles, kickers, eyebrows, overlays, marks and callout labels included.
+   `em` is a colour highlight, never an italic; the display faces have no
+   italic and a synthesized one looks wrong. */
+strong {
+  color: var(--c-ink-100);
+  font-weight: 600;
+}
+
+em {
+  font-style: normal;
+  color: var(--c-accent-400);
+}
+
+/* Emphasis has to differ from what surrounds it. In slots already set in the
+   brightest ink, bold would be invisible, so it takes the accent instead. */
+.swdh-banner__title strong,
+.swdh-block__title strong,
+.swdh-card__title strong,
+.preview-title__name strong,
+.preview-overlay__text strong,
+.anno__label strong {
+  color: var(--c-accent-400);
+}
+
+/* And in slots already set in the accent, highlight takes the bright ink. */
+.swdh-card__eyebrow em,
+.preview-title__kicker em,
+.preview-mark em {
+  color: var(--c-ink-100);
+}
+
+.swdh-list {
+  list-style: none;
+}
+
+.swdh-list li {
+  position: relative;
+  padding-left: var(--s-4);
+}
+
+.swdh-list li + li {
+  margin-top: var(--s-2);
+}
+
+/* Square marker, echoing the corner-tick geometry. */
+.swdh-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  background: var(--c-accent-500);
+}
+
+/* Screenshots and other embedded imagery inside a block or card body. */
+.swdh-figure > img,
+.swdh-figure > .anno {
+  display: block;
+  width: 100%;
+  border: var(--rule-hairline) solid var(--c-edge);
+}
+
+.swdh-figure figcaption {
+  margin-top: var(--s-2);
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.06em;
+  color: var(--c-ink-500);
+}
+
+/* --------------------------------------------------------------------------
+ * Card — block with a fixed square icon slot at the top left
+ * ----------------------------------------------------------------------- */
+
+.swdh-card {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  grid-template-areas:
+    'icon head'
+    'body body';
+  /* Tighter than the column gap: icon and title read as one unit. */
+  column-gap: var(--s-4);
+  row-gap: var(--s-3);
+  padding: var(--pad-panel);
+}
+
+.swdh-card__icon {
+  grid-area: icon;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  background: var(--well-scrim);
+  border: var(--rule-hairline) solid var(--c-accent-700);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.swdh-card__icon img,
+.swdh-card__icon svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.swdh-card__head {
+  grid-area: head;
+  align-self: center;
+}
+
+.swdh-card__eyebrow {
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-accent-400);
+  margin-bottom: var(--s-1);
+}
+
+.swdh-card__body {
+  grid-area: body;
+}
