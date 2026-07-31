@@ -91,14 +91,36 @@
   outline-offset: 0;
 }
 
+/* A slide heading above the screenshot. Oxanium display at gallery scale — the
+   carousel is viewed large, so this is sized well past a description title. */
+.swdh-carousel__title {
+  font-family: var(--f-display);
+  font-size: calc(44px * var(--type-scale));
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--c-ink-100);
+}
+.swdh-carousel__title strong {
+  color: var(--c-accent-400);
+}
+.swdh-carousel__title em {
+  color: var(--c-accent-400);
+  font-style: normal;
+}
+
+/* The carousel is displayed large in Steam's gallery, so the caption is sized
+   for that, not for the description column — well above a block's body text. */
 .swdh-carousel__caption {
   font-family: var(--f-body);
-  font-size: calc(19px * var(--type-scale));
+  font-size: calc(30px * var(--type-scale));
   line-height: 1.3;
-  color: var(--c-ink-300);
-  text-align: center;
-  border-left: 3px solid var(--c-accent-500);
-  padding-left: 12px;
+  color: var(--c-ink-100);
+  text-align: left;
+  border-left: 4px solid var(--c-accent-500);
+  padding-left: 16px;
 }
 
 /* A contained image sits centred on the identity ground, framed and ticked, so

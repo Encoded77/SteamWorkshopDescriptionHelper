@@ -1,4 +1,4 @@
-import type { Annotation, BodyItem, Content } from './api';
+import type { Annotation, BodyItem, Content, Step } from './api';
 import { Area, AssetPicker, Check, Num, Select, Text } from './fields';
 import { AnnotationEditor } from './AnnotationEditor';
 import { GenericForm } from './GenericForm';
@@ -71,6 +71,40 @@ export function ContentForm({
           />
         </>
       );
+
+    case 'steps': {
+      const layout = (s('layout') ?? 'spine') as 'spine' | 'chips';
+      const stepList = (value['steps'] as Step[]) ?? [];
+
+      return (
+        <>
+          <Text
+            label="Eyebrow"
+            value={s('eyebrow')}
+            hint="Small accent line above the title, e.g. “Requires Odyssey”."
+            onChange={(v) => edit((d) => (d['eyebrow'] = v))}
+          />
+          <Text label="Title" value={s('title')} onChange={(v) => edit((d) => (d['title'] = v))} />
+          <AssetPicker
+            label="Icon (optional)"
+            value={s('icon')}
+            onChange={(v) => edit((d) => (d['icon'] = v || undefined))}
+          />
+          <Select
+            label="Layout"
+            value={layout}
+            options={['spine', 'chips'] as const}
+            hint="spine: vertical numbered list, 3–6 steps. chips: compact horizontal strip, up to 4 short steps, no annotations."
+            onChange={(v) => edit((d) => (d['layout'] = v))}
+          />
+          <StepsEditor
+            items={stepList}
+            layout={layout}
+            onChange={(items) => edit((d) => (d['steps'] = items))}
+          />
+        </>
+      );
+    }
 
     case 'preview-title':
       return (
@@ -195,8 +229,15 @@ export function ContentForm({
             onChange={(v) => edit((d) => (d['screenshot'] = v))}
           />
           <Text
+            label="Title"
+            value={s('title')}
+            hint="Optional large heading above the screenshot, e.g. the feature this slide shows."
+            onChange={(v) => edit((d) => (d['title'] = v))}
+          />
+          <Text
             label="Caption"
             value={s('caption')}
+            hint="Optional. Shown below the screenshot, sized for the gallery."
             onChange={(v) => edit((d) => (d['caption'] = v))}
           />
 
@@ -372,6 +413,148 @@ function BodyEditor({
         <button onClick={() => onChange([...items, { p: '' }])}>+ Paragraph</button>
         <button onClick={() => onChange([...items, { list: [''] }])}>+ List</button>
         <button onClick={() => onChange([...items, { image: { src: '' } }])}>+ Image</button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Steps
+ * ------------------------------------------------------------------------ */
+
+function StepsEditor({
+  items,
+  layout,
+  onChange,
+}: {
+  items: Step[];
+  layout: 'spine' | 'chips';
+  onChange: (items: Step[]) => void;
+}) {
+  const replace = (i: number, step: Step) => {
+    const next = [...items];
+    next[i] = step;
+    onChange(next);
+  };
+
+  const move = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    onChange(next);
+  };
+
+  // chips has no room for a fifth cell or for callouts on its small image cap.
+  const chipsFull = layout === 'chips' && items.length >= 4;
+
+  return (
+    <>
+      <h2 className="section-title">Steps</h2>
+
+      {items.map((step, i) => (
+        <div className="card" key={i}>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <span className="preview-caption">step {i + 1}</span>
+            <div className="spacer" />
+            <button onClick={() => move(i, -1)} disabled={i === 0} title="Move up">
+              ↑
+            </button>
+            <button onClick={() => move(i, 1)} disabled={i === items.length - 1} title="Move down">
+              ↓
+            </button>
+            <button
+              className="danger"
+              onClick={() => onChange(items.filter((_, j) => j !== i))}
+              disabled={items.length <= 2}
+              title={items.length <= 2 ? 'A steps card needs at least two steps' : 'Remove'}
+            >
+              ✕
+            </button>
+          </div>
+
+          <Text
+            label="Title"
+            value={step.title}
+            onChange={(v) => replace(i, { ...step, title: v ?? '' })}
+          />
+          <Area
+            label="Body"
+            value={step.body ?? ''}
+            rows={2}
+            hint="Optional. **bold** and _highlight_ are supported."
+            onChange={(v) => replace(i, { ...step, body: v === '' ? undefined : v })}
+          />
+          <Text
+            label="Tag"
+            value={step.tag}
+            hint="Optional monospace chip, e.g. “Automatic” or “Reward”."
+            onChange={(v) => replace(i, { ...step, tag: v })}
+          />
+
+          {step.image === undefined ? (
+            <button onClick={() => replace(i, { ...step, image: { src: '' } })}>+ Image</button>
+          ) : (
+            <>
+              <AssetPicker
+                label="Image"
+                value={step.image.src}
+                annotatableOnly={(step.image.annotations?.length ?? 0) > 0}
+                onChange={(v) => replace(i, { ...step, image: { ...step.image!, src: v } })}
+              />
+              <Text
+                label="Caption"
+                value={step.image.caption}
+                onChange={(v) => replace(i, { ...step, image: { ...step.image!, caption: v } })}
+              />
+              {(step.image.annotations?.length ?? 0) > 0 && (
+                <Num
+                  label="Dim"
+                  value={step.image.dim}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  hint="Darkening outside the highlights. Lower it when the surroundings are worth reading."
+                  onChange={(v) => replace(i, { ...step, image: { ...step.image!, dim: v } })}
+                />
+              )}
+              {layout === 'chips' ? (
+                <p className="hint">
+                  In the <code>chips</code> layout the image is a small cap with no room for
+                  callouts. Switch to <code>spine</code> to annotate it.
+                </p>
+              ) : (
+                <AnnotationEditor
+                  src={step.image.src}
+                  annotations={step.image.annotations ?? []}
+                  onChange={(next) =>
+                    replace(i, {
+                      ...step,
+                      image: { ...step.image!, annotations: next.length ? next : undefined },
+                    })
+                  }
+                />
+              )}
+              <button
+                className="danger"
+                onClick={() => replace(i, { ...step, image: undefined })}
+                title="Remove image"
+              >
+                Remove image
+              </button>
+            </>
+          )}
+        </div>
+      ))}
+
+      <div className="row">
+        <button
+          onClick={() => onChange([...items, { title: '' }])}
+          disabled={chipsFull || items.length >= 8}
+          title={chipsFull ? 'chips supports at most 4 steps' : undefined}
+        >
+          + Step
+        </button>
       </div>
     </>
   );

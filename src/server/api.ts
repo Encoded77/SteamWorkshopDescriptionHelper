@@ -7,8 +7,7 @@ import { contentToHtml, buildAll, describe } from '../build.js';
 import { imageSize } from '../imagesize.js';
 import { assemble, loadUrlMap, STEAM_CHAR_LIMIT } from '../bbcode.js';
 import { writeYamlNew, writeYamlPreserving } from './yamlwrite.js';
-import { publish, publishablePngs } from '../publish.js';
-import { GitHub, gitBlobSha } from '../github.js';
+import { publish, publishablePngs, pendingSync, type PendingChanges } from '../publish.js';
 import { isCarousel, isDescriptionImage, loadContent } from '../content.js';
 import { ThemeSchema, loadTheme, saveTheme } from '../theme.js';
 import { describeContentSchema } from '../schemainfo.js';
@@ -236,28 +235,17 @@ async function route(
  * ------------------------------------------------------------------------ */
 
 /**
- * Which images differ from the repo. Null when it cannot be determined, so the
- * UI can say "unknown" rather than imply there is nothing to do.
+ * What a publish would change — images, other source files, and deletions.
+ * Null when it cannot be determined, so the UI can say "unknown" rather than
+ * imply there is nothing to do.
  */
-async function pendingUpload(ctx: ApiContext, ready: string[]): Promise<string[] | null> {
+async function pendingChanges(ctx: ApiContext, ready: string[]): Promise<PendingChanges | null> {
   const ws = ctx.workspace;
   const token = process.env['GITHUB_TOKEN'];
   if (!token || ws.repo.startsWith('CHANGE-ME/')) return null;
 
   try {
-    const gh = new GitHub(ws.repo, token);
-    const head = await gh.headCommitSha(ws.branch);
-    const tree = await gh.listTree(await gh.treeShaOfCommit(head));
-    const existing = new Map(
-      tree.filter((e) => e.type === 'blob').map((e) => [e.path, e.sha] as const),
-    );
-
-    const pending: string[] = [];
-    for (const name of ready) {
-      const data = await readFile(join(ctx.outDir, `${name}.png`));
-      if (existing.get(`${ws.project}/out/${name}.png`) !== gitBlobSha(data)) pending.push(name);
-    }
-    return pending;
+    return await pendingSync(ws, token, ready);
   } catch {
     return null;
   }
@@ -286,6 +274,7 @@ async function publishStatus(ctx: ApiContext) {
   // for publishing.
   const { ready, missing, stale } = await publishablePngs(ctx.contentDir, ctx.outDir);
   const urls = await loadUrlMap(join(ctx.descriptionDir, 'urls.yaml'));
+  const changes = await pendingChanges(ctx, ready);
 
   const images = [];
   for (const name of ready) {
@@ -314,8 +303,12 @@ async function publishStatus(ctx: ApiContext) {
     notRendered: missing,
     /** Rendered before their content file changed — publishing is blocked. */
     stale,
-    /** Differ from the repo. null when it could not be determined. */
-    pending: await pendingUpload(ctx, ready),
+    /** Image renders that differ from the repo. null when it could not be determined. */
+    pending: changes ? changes.images : null,
+    /** Non-image source files (description text, content, assets) that differ. */
+    pendingSources: changes ? changes.sources : null,
+    /** Repo files publishing would remove because they are gone locally. */
+    pendingDeletes: changes ? changes.deletes : null,
     images,
   };
 }

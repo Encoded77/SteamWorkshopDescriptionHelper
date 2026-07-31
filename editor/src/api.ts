@@ -37,10 +37,24 @@ export interface Annotation {
   at?: { x: number; y: number };
 }
 
+export interface ImageSpec {
+  src: string;
+  caption?: string;
+  annotations?: Annotation[];
+  dim?: number;
+}
 export interface ImageItem {
-  image: { src: string; caption?: string; annotations?: Annotation[]; dim?: number };
+  image: ImageSpec;
 }
 export type BodyItem = { p: string } | { list: string[] } | ImageItem;
+
+/** One step of a `steps` walkthrough. */
+export interface Step {
+  title: string;
+  body?: string;
+  tag?: string;
+  image?: ImageSpec;
+}
 
 /** Loosely typed: the server's Zod schema is the authority on shape. */
 export type Content = Record<string, unknown> & { type: ContentType };
@@ -91,6 +105,10 @@ export interface PublishStatus {
   stale: string[];
   /** Images differing from the repo. null when it could not be determined. */
   pending: string[] | null;
+  /** Non-image source files (description text, content, assets) differing from the repo. */
+  pendingSources: string[] | null;
+  /** Repo files publishing would remove because they no longer exist locally. */
+  pendingDeletes: string[] | null;
   images: Array<{
     name: string;
     file: string;
@@ -107,6 +125,10 @@ export interface PublishResult {
   deleted: string[];
   urls: Record<string, string>;
   committed: boolean;
+  /** The local clone was fast-forwarded onto the pushed commit. */
+  cloneSynced: boolean;
+  /** Present when the clone was not synced and manual catch-up is needed. */
+  cloneSyncNote?: string;
   log: string[];
 }
 

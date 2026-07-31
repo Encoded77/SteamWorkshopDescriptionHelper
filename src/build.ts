@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { buildDocument } from './document.js';
-import { banner, block, card } from './components.js';
+import { banner, block, card, steps } from './components.js';
 import { coverShot, previewFullbleed, previewScreenshot, previewTitle, type Crop } from './previews.js';
 import { annotatedImage, type Annotation } from './annotate.js';
 import { loadTheme, themeCss } from './theme.js';
@@ -17,6 +17,13 @@ import {
   renderBody,
   type Content,
 } from './content.js';
+
+/* Carousel vertical budget, in canvas pixels. The title and caption bands are
+ * kept in step with the type sizes in annotate.css; see the carousel case. */
+const CAROUSEL_PAD = 24;
+const CAROUSEL_GAP = 14;
+const CAROUSEL_TITLE_BAND = 64;
+const CAROUSEL_CAPTION_BAND = 92;
 
 /** Cover is a plain image; contained or annotated needs the intrinsic size. */
 async function previewMedia(
@@ -87,6 +94,50 @@ export async function contentToHtml(content: Content, projectRoot: string): Prom
       });
       break;
 
+    case 'steps': {
+      if (content.layout === 'chips') {
+        if (content.steps.length > 4) {
+          throw new Error(
+            `layout: chips supports at most 4 steps (${content.steps.length} given).\n` +
+              `  Use layout: spine for longer sequences — the column has no room for 5 chips.`,
+          );
+        }
+        const annotated = content.steps.find((s) => s.image?.annotations?.length);
+        if (annotated) {
+          throw new Error(
+            `layout: chips cannot carry annotated images ("${annotated.title}").\n` +
+              `  A chip's image is a small cap with no room for callouts. Use layout: spine,\n` +
+              `  or drop the annotations from that step.`,
+          );
+        }
+      }
+
+      // Spine reuses the block/card image path, so captions and annotations
+      // behave identically; a chip takes a plain cover image instead.
+      const stepViews = await Promise.all(
+        content.steps.map(async (s, i) => ({
+          n: i + 1,
+          title: s.title,
+          body: s.body,
+          tag: s.tag,
+          media: s.image
+            ? content.layout === 'chips'
+              ? html`<img class="swdh-chip__img" src="${await embedAsset(s.image.src, projectRoot)}" alt="" />`
+              : await renderBody([{ image: s.image }], projectRoot)
+            : undefined,
+        })),
+      );
+
+      component = steps({
+        title: content.title,
+        eyebrow: content.eyebrow,
+        icon: content.icon ? await iconMarkup(content.icon, projectRoot) : undefined,
+        layout: content.layout,
+        steps: stepViews,
+      });
+      break;
+    }
+
     case 'preview-title':
       component = previewTitle({
         name: content.name,
@@ -133,7 +184,20 @@ export async function contentToHtml(content: Content, projectRoot: string): Prom
 
     case 'carousel': {
       const { uri, size } = await embedImage(content.screenshot, projectRoot);
+
+      // The image box is computed here so the annotation overlay coincides with
+      // it, so the title and caption bands must be subtracted from the canvas.
+      // Bands are generous (title one line, caption up to two) — over-reserving
+      // only shrinks the centred image a little; under-reserving clips it, since
+      // the panel hides overflow. Kept in step with the sizes in annotate.css.
+      let reservedV = CAROUSEL_PAD * 2;
+      if (content.title) reservedV += CAROUSEL_TITLE_BAND + CAROUSEL_GAP;
+      if (content.caption) reservedV += CAROUSEL_CAPTION_BAND + CAROUSEL_GAP;
+
       component = html`<div class="swdh-panel swdh-panel--ticked swdh-carousel">
+        ${content.title
+          ? html`<div class="swdh-carousel__title">${inline(content.title)}</div>`
+          : ''}
         ${annotatedImage({
           dataUri: uri,
           natural: size,
@@ -141,7 +205,7 @@ export async function contentToHtml(content: Content, projectRoot: string): Prom
           label: content.screenshot,
           dim: content.dim,
           upscale: content.upscale,
-          containIn: { width: content.width - 48, height: content.height - (content.caption ? 76 : 48) },
+          containIn: { width: content.width - CAROUSEL_PAD * 2, height: content.height - reservedV },
         })}
         ${content.caption
           ? html`<div class="swdh-carousel__caption">${inline(content.caption)}</div>`

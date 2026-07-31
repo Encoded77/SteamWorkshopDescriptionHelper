@@ -47,8 +47,25 @@ export function App() {
     })();
   }, []);
 
+  // Guards every path that would throw away an unsaved draft. Tab switches
+  // within the app keep the draft mounted, so they are deliberately not guarded.
+  const confirmDiscard = useCallback(
+    () => !dirty || confirm('You have unsaved changes. Discard them?'),
+    [dirty],
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
   function switchProject(name: string) {
     if (name === project) return;
+    if (!confirmDiscard()) return;
     setActiveProject(name);
     localStorage.setItem(LAST_PROJECT, name);
     setProject(name);
@@ -77,6 +94,9 @@ export function App() {
   }, [project, refreshFiles]);
 
   const open = useCallback(async (name: string) => {
+    // Re-opening the current file also reloads it from disk, so it discards
+    // edits just like opening another one — both go through the guard.
+    if (!confirmDiscard()) return;
     // The file list is always visible, so opening from another tab has to
     // bring the editor with it.
     setTab('images');
@@ -90,7 +110,7 @@ export function App() {
       setDraft(null);
       setErrors([err instanceof Error ? err.message : String(err)]);
     }
-  }, []);
+  }, [confirmDiscard]);
 
   async function save() {
     if (!selected || !draft) return;

@@ -136,14 +136,13 @@ program
     );
     console.log(`  urls.yaml and description.bbcode rewritten`);
 
-    if (result.committed) {
+    if (result.cloneSynced) {
       console.log(
-        `\n  The assets repo has new commits on ${ws.branch}, so your clone is behind and\n` +
-          `  the next publish will refuse until it catches up. Every project file on disk\n` +
-          `  already matches what was just committed, so this discards nothing:\n\n` +
-          `    git -C ${ws.root} checkout -- ${ws.project}\n` +
-          `    git -C ${ws.root} pull`,
+        `\n  Local clone fast-forwarded to the pushed commit — nothing to catch up, and the\n` +
+          `  next publish will not be refused. Your working-tree edits were left untouched.`,
       );
+    } else if (result.cloneSyncNote) {
+      console.log(`\n  ${result.cloneSyncNote.replace(/\n/g, '\n  ')}`);
     }
   });
 

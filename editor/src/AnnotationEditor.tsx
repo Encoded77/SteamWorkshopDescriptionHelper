@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { api, type Annotation } from './api';
+import { useAssets } from './fields';
 
 /*
  * Coordinates stay in source-image pixels, the same units the file stores.
@@ -67,12 +68,31 @@ export function AnnotationEditor({
   onChange: (next: Annotation[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const assets = useAssets();
 
   if (!src) {
     return (
       <>
         <h2 className="section-title">Annotations</h2>
         <p className="hint">Choose an image first.</p>
+      </>
+    );
+  }
+
+  // SVGs (and anything else with no readable header) are listed without a size,
+  // and annotation coordinates are resolved against real pixels — so a vector
+  // asset cannot be annotated. Caught here, the build's dimension error never
+  // reaches the user. `undefined` means the list has not loaded yet, so only a
+  // positively-known sizeless asset is blocked.
+  const asset = assets.find((a) => a.path === src);
+  if (asset && !(asset.width && asset.height)) {
+    return (
+      <>
+        <h2 className="section-title">Annotations</h2>
+        <p className="hint">
+          <strong>{src}</strong> is a vector asset with no pixel size, so it cannot be annotated.
+          Callout coordinates need a raster image — choose a PNG or JPEG screenshot to annotate.
+        </p>
       </>
     );
   }

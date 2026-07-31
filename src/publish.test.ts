@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isOrphanRender, planSync } from './publish.js';
+import { isOrphanRender, planSync, splitPending } from './publish.js';
 
 const GENERATED = new Set(['ModA/description/urls.yaml', 'ModA/out/description.bbcode']);
 
@@ -68,6 +68,31 @@ test('only PNGs directly in this project\'s out/ can be orphans', () => {
   assert.equal(isOrphanRender('ModA/out/description.bbcode', 'ModA', live), false);
   assert.equal(isOrphanRender('ModA/content/a.yaml', 'ModA', live), false);
   assert.equal(isOrphanRender('ModB/out/x.png', 'ModA', live), false);
+});
+
+test('splitPending sorts renders under out/ into images and everything else into sources', () => {
+  const { images, sources } = splitPending('ModA', [
+    'ModA/out/d30-banner.png',
+    'ModA/description/description.txt',
+    'ModA/out/d10-banner.png',
+    'ModA/content/d30-banner.yaml',
+  ]);
+  assert.deepEqual(images, ['d10-banner', 'd30-banner']);
+  assert.deepEqual(sources, ['ModA/content/d30-banner.yaml', 'ModA/description/description.txt']);
+});
+
+test('splitPending treats a text-only description change as a source, so it is never lost', () => {
+  // The bug: a description.txt edit renders no PNG, so an image-only pending view
+  // reported nothing and the publish button stayed disabled.
+  const { images, sources } = splitPending('ModA', ['ModA/description/description.txt']);
+  assert.deepEqual(images, []);
+  assert.deepEqual(sources, ['ModA/description/description.txt']);
+});
+
+test('splitPending does not mistake a non-png in out/ for an image', () => {
+  const { images, sources } = splitPending('ModA', ['ModA/out/notes.txt']);
+  assert.deepEqual(images, []);
+  assert.deepEqual(sources, ['ModA/out/notes.txt']);
 });
 
 test('an empty repo listing deletes nothing', () => {

@@ -95,7 +95,8 @@ body {
 }
 
 .swdh-block__title,
-.swdh-card__title {
+.swdh-card__title,
+.swdh-steps__title {
   font-family: var(--f-display);
   font-size: var(--t-title);
   font-weight: 600;
@@ -128,6 +129,8 @@ em {
 .swdh-banner__title strong,
 .swdh-block__title strong,
 .swdh-card__title strong,
+.swdh-steps__title strong,
+.swdh-step__title strong,
 .preview-title__name strong,
 .preview-overlay__text strong,
 .anno__label strong {
@@ -136,6 +139,8 @@ em {
 
 /* And in slots already set in the accent, highlight takes the bright ink. */
 .swdh-card__eyebrow em,
+.swdh-steps__eyebrow em,
+.swdh-step__tag em,
 .preview-title__kicker em,
 .preview-mark em {
   color: var(--c-ink-100);
@@ -197,8 +202,8 @@ em {
   padding: var(--pad-panel);
 }
 
-.swdh-card__icon {
-  grid-area: icon;
+.swdh-card__icon,
+.swdh-steps__icon {
   width: 64px;
   height: 64px;
   display: grid;
@@ -208,9 +213,14 @@ em {
   border-radius: var(--radius);
   overflow: hidden;
 }
+.swdh-card__icon {
+  grid-area: icon;
+}
 
 .swdh-card__icon img,
-.swdh-card__icon svg {
+.swdh-card__icon svg,
+.swdh-steps__icon img,
+.swdh-steps__icon svg {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -221,7 +231,8 @@ em {
   align-self: center;
 }
 
-.swdh-card__eyebrow {
+.swdh-card__eyebrow,
+.swdh-steps__eyebrow {
   font-family: var(--f-mono);
   font-size: var(--t-label);
   letter-spacing: var(--tracking-label);
@@ -232,4 +243,182 @@ em {
 
 .swdh-card__body {
   grid-area: body;
+}
+
+/* --------------------------------------------------------------------------
+ * Steps — an ordered, visual walkthrough of one feature
+ * ----------------------------------------------------------------------- */
+
+.swdh-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--pad-panel);
+}
+
+/* Header echoes the card: optional icon well beside eyebrow + title. */
+.swdh-steps__head {
+  display: grid;
+  align-items: center;
+  column-gap: var(--s-4);
+}
+.swdh-steps__head--icon {
+  grid-template-columns: 64px 1fr;
+}
+
+/* ---- Spine: vertical numbered list ------------------------------------ */
+
+.swdh-steps__list {
+  list-style: none;
+}
+
+.swdh-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: var(--s-3);
+  padding: var(--s-3) 0;
+}
+.swdh-step + .swdh-step {
+  border-top: var(--rule-hairline) solid var(--c-ground-600);
+}
+
+/* The connecting spine: from just under this marker to the next marker's top.
+   `bottom: calc(-1 * var(--s-3))` runs it into the next row's padding so the
+   segments meet, whatever the step's own height. */
+.swdh-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: calc(var(--s-3) + 28px);
+  bottom: calc(-1 * var(--s-3));
+  width: var(--rule-hairline);
+  background: var(--c-accent-700);
+}
+
+/* Numbered marker, echoing the corner-tick and list-square geometry. Opaque
+   ground and a raised layer so the spine passes behind it, not through it. */
+.swdh-step__marker {
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: var(--panel-bg);
+  border: var(--rule-hairline) solid var(--c-accent-500);
+  border-radius: var(--radius);
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: var(--t-body);
+  line-height: 1;
+  color: var(--c-accent-400);
+}
+
+.swdh-step__content {
+  align-self: center;
+}
+/* A step carrying an image splits into text and a fixed illustration column. */
+.swdh-step--img .swdh-step__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  column-gap: var(--s-4);
+  align-items: start;
+}
+
+.swdh-step__title {
+  font-family: var(--f-display);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--c-ink-100);
+}
+
+.swdh-step__body {
+  margin-top: var(--s-1);
+  color: var(--c-ink-300);
+}
+
+/* Monospace chip: a trigger, an input or a reward. Precedes the title. */
+.swdh-step__tag {
+  display: inline-block;
+  margin-bottom: var(--s-1);
+  padding: 1px var(--s-2);
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-ink-500);
+  border: var(--rule-hairline) solid var(--c-edge);
+}
+
+.swdh-step__media {
+  min-width: 0;
+}
+
+/* ---- Chips: compact horizontal strip ---------------------------------- */
+
+.swdh-steps__chips {
+  list-style: none;
+  display: grid;
+  border: var(--rule-hairline) solid var(--c-edge);
+}
+
+.swdh-chip {
+  position: relative;
+}
+.swdh-chip + .swdh-chip {
+  border-left: var(--rule-hairline) solid var(--c-ground-600);
+}
+
+/* Arrow between cells, riding over the divider to read as a sequence. */
+.swdh-chip:not(:last-child)::after {
+  content: '\203A';
+  position: absolute;
+  top: var(--s-4);
+  right: -6px;
+  z-index: 2;
+  padding: 0 2px;
+  background: var(--panel-bg);
+  color: var(--c-accent-500);
+  font-family: var(--f-body);
+  line-height: 1;
+}
+
+.swdh-chip__img {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  border-bottom: var(--rule-hairline) solid var(--c-edge);
+}
+
+.swdh-chip__in {
+  padding: var(--s-3);
+}
+
+.swdh-chip__num {
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  letter-spacing: var(--tracking-label);
+  color: var(--c-accent-400);
+}
+
+.swdh-chip__title {
+  margin-top: var(--s-1);
+  font-family: var(--f-display);
+  font-size: var(--t-small);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  color: var(--c-ink-100);
+}
+
+.swdh-chip__body {
+  margin-top: var(--s-2);
+  font-size: var(--t-small);
+  color: var(--c-ink-500);
 }

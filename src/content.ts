@@ -71,6 +71,36 @@ const Card = z
   })
   .strict();
 
+/** One step of a `steps` walkthrough. Body and illustration are both optional. */
+const Step = z
+  .object({
+    title: z.string().min(1),
+    body: z.string().min(1).optional(),
+    /** Small monospace chip on the step, e.g. a trigger or a reward. */
+    tag: z.string().min(1).optional(),
+    /** Optional illustration, using the same spec as block and card images. */
+    image: ImageSpec.optional(),
+  })
+  .strict();
+
+/**
+ * An ordered, visual walkthrough of one complex feature: what block and card
+ * cannot express. `spine` is a vertical numbered list; `chips` is a compact
+ * horizontal strip whose extra constraints (<=4 steps, no annotations) are
+ * enforced in build.ts, not here, because a discriminatedUnion member cannot be
+ * a refined (ZodEffects) schema.
+ */
+const Steps = z
+  .object({
+    type: z.literal('steps'),
+    title: z.string().min(1),
+    eyebrow: z.string().optional(),
+    icon: z.string().min(1).describe('asset:icon').optional(),
+    layout: z.enum(['spine', 'chips']).default('spine'),
+    steps: z.array(Step).min(2).max(8),
+  })
+  .strict();
+
 /* Preview surfaces: RimWorld About/Preview.png, fixed 640x360. */
 
 /** Which part of a screenshot survives when the visible area is not 16:9. */
@@ -117,6 +147,8 @@ const Carousel = z
   .object({
     type: z.literal('carousel'),
     screenshot: z.string().min(1).describe('asset:screenshot'),
+    /** Large heading above the screenshot, e.g. the feature this slide shows. */
+    title: z.string().min(1).optional(),
     caption: z.string().optional(),
     annotations: z.array(AnnotationSchema).optional(),
     dim: z.number().min(0).max(1).default(0.66),
@@ -136,6 +168,7 @@ export const ContentSchema = z.discriminatedUnion('type', [
   Banner,
   Block,
   Card,
+  Steps,
   PreviewTitle,
   PreviewScreenshot,
   PreviewFullbleed,
@@ -143,6 +176,7 @@ export const ContentSchema = z.discriminatedUnion('type', [
 ]);
 export type Content = z.infer<typeof ContentSchema>;
 export type BlockItemT = z.infer<typeof BlockItem>;
+export type ImageSpecT = z.infer<typeof ImageSpec>;
 
 /** Fixed canvas, and a hard file size limit. */
 export function isPreview(content: Content): boolean {

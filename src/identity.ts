@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { buildDocument } from './document.js';
-import { banner, block, card } from './components.js';
+import { banner, block, card, steps } from './components.js';
 import { html, raw } from './html.js';
 import { Renderer, STEAM_PAGE_BG } from './render.js';
 
@@ -65,6 +65,33 @@ const SPECIMEN = html`<div id="capture">
       genuine investment rather than a strictly better colonist. Affects
       <strong>14 mech types</strong>.
     </p>`,
+  })}
+
+  ${steps({
+    eyebrow: 'Requires Odyssey',
+    title: 'Gravship Boarding',
+    icon: PLACEHOLDER_ICON,
+    layout: 'spine',
+    steps: [
+      {
+        n: 1,
+        title: 'Match velocity',
+        body: 'Your ship closes to grapple range once a hostile gravship drops below _40% hull_.',
+        tag: 'Automatic',
+      },
+      {
+        n: 2,
+        title: 'Breach the hull',
+        body: 'Draft boarders onto a breach charge. Higher **Melee** skill widens the entry point.',
+        tag: 'Draft pawns',
+      },
+      {
+        n: 3,
+        title: 'Claim the salvage',
+        body: 'Tow the wreck home for hull plating, components and the intact _gravcore_.',
+        tag: 'Reward',
+      },
+    ],
   })}
 </div>`;
 

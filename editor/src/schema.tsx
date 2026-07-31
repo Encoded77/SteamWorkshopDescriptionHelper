@@ -37,8 +37,12 @@ export function templateFor(info: TypeInfo, asset: string): Record<string, unkno
     else if (field.kind === 'string') out[field.key] = placeholder(field.key);
     else if (field.kind === 'number') out[field.key] = 0;
     else if (field.kind === 'boolean') out[field.key] = false;
-    // Only body arrays are required, and they need one usable entry.
-    else if (field.kind === 'array') out[field.key] = [{ p: 'Text goes here.' }];
+    // Required arrays need usable entries: a step list wants steps, not body items.
+    else if (field.kind === 'array')
+      out[field.key] =
+        field.key === 'steps'
+          ? [{ title: 'First step' }, { title: 'Second step' }]
+          : [{ p: 'Text goes here.' }];
   }
 
   return out;

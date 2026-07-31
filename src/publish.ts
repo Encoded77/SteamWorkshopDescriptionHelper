@@ -27,6 +27,10 @@ export interface PublishResult {
   deleted: string[];
   urls: Record<string, string>;
   committed: boolean;
+  /** The local clone was fast-forwarded onto the pushed commit; no manual catch-up needed. */
+  cloneSynced: boolean;
+  /** Present when the clone was not synced and the user has to catch up by hand. */
+  cloneSyncNote?: string;
 }
 
 export function jsDelivrUrl(repo: string, sha: string, path: string): string {
@@ -146,6 +150,72 @@ export function planSync(opts: {
   return { update: update.sort(), unchanged: unchanged.sort(), delete: remove.sort() };
 }
 
+export interface PendingChanges {
+  /** Render names (out/<name>.png) whose bytes differ from the repo. */
+  images: string[];
+  /** Non-image source files (description text, content yaml, assets) that differ. */
+  sources: string[];
+  /** Repo files under the project no longer present locally, which publish would remove. */
+  deletes: string[];
+}
+
+/**
+ * Splits planSync's flat update list into image renders and everything else. The
+ * editor shows the two differently, and only the images carry a name the render
+ * list can badge. Pure, so it is unit-tested without reaching the network.
+ */
+export function splitPending(
+  project: string,
+  update: string[],
+): { images: string[]; sources: string[] } {
+  const outPrefix = `${project}/out/`;
+  const images: string[] = [];
+  const sources: string[] = [];
+  for (const p of update) {
+    if (p.startsWith(outPrefix) && p.toLowerCase().endsWith('.png'))
+      images.push(p.slice(outPrefix.length).replace(/\.png$/i, ''));
+    else sources.push(p);
+  }
+  return { images: images.sort(), sources: sources.sort() };
+}
+
+/**
+ * The read-only half of {@link publish}: what a publish would change, without
+ * writing anything. The editor's publish button uses it to know whether there is
+ * anything to do. It has to weigh every project file, not just the rendered
+ * PNGs — a text-only edit to description.txt changes no image but is still a real
+ * change, and an image-only view of "pending" left the button dead for it.
+ */
+export async function pendingSync(
+  ws: Workspace,
+  token: string,
+  ready: string[],
+): Promise<PendingChanges> {
+  const gh = new GitHub(ws.repo, token);
+  const headSha = await gh.headCommitSha(ws.branch);
+  const existing = new Map(
+    (await gh.listTree(await gh.treeShaOfCommit(headSha)))
+      .filter((e) => e.type === 'blob')
+      .map((e) => [e.path, e.sha]),
+  );
+
+  const generatedPaths = new Set([
+    `${ws.project}/description/urls.yaml`,
+    `${ws.project}/out/description.bbcode`,
+  ]);
+
+  const publishable = new Set(ready);
+  const local = new Map<string, string>();
+  for (const repoPath of await localProjectFiles(ws)) {
+    if (isOrphanRender(repoPath, ws.project, publishable)) continue;
+    local.set(repoPath, gitBlobSha(await readFile(join(ws.root, repoPath))));
+  }
+
+  const plan = planSync({ project: ws.project, local, remote: existing, generated: generatedPaths });
+  const { images, sources } = splitPending(ws.project, plan.update);
+  return { images, sources, deletes: plan.delete };
+}
+
 export interface PublishOptions {
   /** Report the plan without creating blobs, commits, or generated files. */
   dryRun?: boolean;
@@ -246,7 +316,15 @@ export async function publish(
       onProgress('  everything already matches the repo');
     }
     onProgress(`\n  urls.yaml and description.bbcode would be rewritten and committed.`);
-    return { sha: headSha, uploaded: changed.map((c) => c.repoPath), unchanged, deleted, urls: {}, committed: false };
+    return {
+      sha: headSha,
+      uploaded: changed.map((c) => c.repoPath),
+      unchanged,
+      deleted,
+      urls: {},
+      committed: false,
+      cloneSynced: false,
+    };
   }
 
   if (changed.length === 0 && deleted.length === 0) {
@@ -311,6 +389,12 @@ export async function publish(
     },
   ], onProgress);
 
+  // Publishing pushed 1-2 commits through the API, so the clone's HEAD is now
+  // behind the branch even though its files already match. Realign it here so
+  // the next publish is not refused and the user never has to `git pull` a
+  // publish commit into local edits — the source of the merge conflicts.
+  const { cloneSynced, cloneSyncNote } = await syncClone(ws, token, committed || generated, onProgress);
+
   return {
     sha,
     uploaded: changed.map((c) => c.repoPath),
@@ -318,7 +402,48 @@ export async function publish(
     deleted,
     urls,
     committed: committed || generated,
+    cloneSynced,
+    cloneSyncNote,
   };
+}
+
+/**
+ * Fast-forwards the local clone onto the freshly pushed branch head, leaving the
+ * working tree untouched. Never fails the publish: the commit is already on
+ * GitHub, so any problem here just falls back to the manual catch-up note.
+ */
+async function syncClone(
+  ws: Workspace,
+  token: string,
+  didCommit: boolean,
+  onProgress: (line: string) => void,
+): Promise<{ cloneSynced: boolean; cloneSyncNote?: string }> {
+  if (!didCommit) return { cloneSynced: false };
+
+  const manual =
+    `Catch up by hand — this discards nothing, it only moves the branch pointer:\n` +
+    `    git -C ${ws.root} fetch origin ${ws.branch}\n` +
+    `    git -C ${ws.root} reset --mixed origin/${ws.branch}`;
+
+  try {
+    // Token in the URL, so a clone whose remote is SSH or private still fetches.
+    const fetchUrl = `https://x-access-token:${token}@github.com/${ws.repo}.git`;
+    const result = await repo.fastForwardClone(ws.root, ws.branch, fetchUrl);
+
+    if (result.ok) {
+      onProgress(`Local clone fast-forwarded to ${(result.to ?? '').slice(0, 7)} — ready for the next publish.`);
+      return { cloneSynced: true };
+    }
+
+    const note = `Local clone not synced: ${result.reason}.\n${manual}`;
+    onProgress(note);
+    return { cloneSynced: false, cloneSyncNote: note };
+  } catch {
+    // Redacted: a raw git error can echo the token-bearing fetch URL.
+    const note = `Local clone not synced (unexpected git error).\n${manual}`;
+    onProgress(note);
+    return { cloneSynced: false, cloneSyncNote: note };
+  }
 }
 
 /**
@@ -363,10 +488,19 @@ async function assertCloneCurrent(ws: Workspace, remoteSha: string): Promise<voi
   throw new Error(
     `Local clone is missing ${missing} from the branch; ${head}.\n` +
       `  Publishing replaces and deletes files using the local copy, so it would\n` +
-      `  undo whatever those commits changed.\n\n` +
-      `    git -C ${ws.root} pull\n\n` +
-      `  then publish again.` +
-      (ahead > 0 ? `\n\n  The clone also has ${ahead} commit(s) of its own, so expect a merge.` : ''),
+      `  undo whatever those commits changed. Catch the clone up first — fetch, then\n` +
+      `  move the branch pointer WITHOUT a merge, so your uncommitted edits are kept\n` +
+      `  and nothing conflicts:\n\n` +
+      `    git -C ${ws.root} fetch origin ${ws.branch}\n` +
+      `    git -C ${ws.root} reset --mixed origin/${ws.branch}\n\n` +
+      `  then publish again. Avoid \`git pull\`: it merges the last publish commit into\n` +
+      `  your edits, which is what turns into a conflict. (After a normal publish the\n` +
+      `  clone is fast-forwarded for you; this only shows when it fell behind another way.)` +
+      (ahead > 0
+        ? `\n\n  The clone also has ${ahead} commit(s) of its own, which reset --mixed turns\n` +
+          `  back into uncommitted changes. To keep them as commits, rebase onto\n` +
+          `  origin/${ws.branch} instead.`
+        : ''),
   );
 }
 

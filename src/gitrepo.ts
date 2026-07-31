@@ -86,3 +86,59 @@ export async function divergence(dir: string, remoteSha: string): Promise<Diverg
   const [behind = '0', ahead = '0'] = out.trim().split(/\s+/);
   return { synced: false, behind: Number(behind), ahead: Number(ahead) };
 }
+
+export interface CloneSync {
+  ok: boolean;
+  /** HEAD before, for reporting. */
+  from?: string;
+  /** The branch head the clone was moved onto. */
+  to?: string;
+  /** Why the fast-forward was skipped, safe to show the user (never a raw git error). */
+  reason?: string;
+}
+
+/**
+ * Move the clone's branch pointer onto the commit publishing just pushed,
+ * WITHOUT touching the working tree — the same realign the user would otherwise
+ * do by hand, so the next publish is not refused for being behind.
+ *
+ * Only ever a fast-forward: the published commit is built on the clone's HEAD
+ * (publishing refuses otherwise), so `reset --mixed` discards nothing. `fetchUrl`
+ * carries the token, so a clone whose own remote is SSH or private still works;
+ * fetch failures are swallowed into a redacted reason so the token never leaks
+ * into an error message.
+ */
+export async function fastForwardClone(
+  dir: string,
+  branch: string,
+  fetchUrl: string,
+): Promise<CloneSync> {
+  // reset moves whatever branch is checked out, so it must be the right one.
+  const current = (await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+  if (current !== branch) {
+    return { ok: false, reason: `the clone is on "${current}", not "${branch}"` };
+  }
+
+  const before = (await git(dir, ['rev-parse', 'HEAD'])).trim();
+
+  try {
+    await git(dir, ['fetch', fetchUrl, branch]);
+  } catch {
+    // Never surface the raw error: it echoes the token-bearing URL.
+    return { ok: false, from: before, reason: 'could not fetch the branch (network or credentials)' };
+  }
+
+  const target = (await git(dir, ['rev-parse', 'FETCH_HEAD'])).trim();
+  if (target === before) return { ok: true, from: before, to: target };
+
+  const fastForward = await git(dir, ['merge-base', '--is-ancestor', before, target]).then(
+    () => true,
+    () => false,
+  );
+  if (!fastForward) {
+    return { ok: false, from: before, to: target, reason: 'the branch is not a fast-forward of the clone' };
+  }
+
+  await git(dir, ['reset', '--mixed', target]);
+  return { ok: true, from: before, to: target };
+}

@@ -72,7 +72,21 @@ export function PublishPanel() {
   // Only description images are embedded, so only they can lack a URL.
   const unresolved = status.images.filter((i) => i.kind === 'description' && !i.url);
   const pending = status.pending;
-  const nothingToPublish = pending !== null && pending.length === 0;
+  const sourceCount = status.pendingSources?.length ?? 0;
+  const deleteCount = status.pendingDeletes?.length ?? 0;
+  // A text-only edit to the description changes no image, so the button must also
+  // weigh source-file and deletion changes, not just pending image uploads.
+  const nothingToPublish =
+    pending !== null && pending.length === 0 && sourceCount === 0 && deleteCount === 0;
+
+  const pendingSummary = (() => {
+    if (pending === null) return 'cannot reach the repo — publish state unknown';
+    const parts: string[] = [];
+    if (pending.length) parts.push(`${pending.length} image(s)`);
+    if (sourceCount) parts.push(`${sourceCount} source file(s)`);
+    if (deleteCount) parts.push(`${deleteCount} to remove`);
+    return parts.length ? `${parts.join(', ')} to publish` : 'everything is up to date';
+  })();
 
   return (
     <div style={{ maxWidth: 900 }}>
@@ -144,13 +158,7 @@ export function PublishPanel() {
         >
           {busy ? 'Publishing…' : 'Publish to CDN'}
         </button>
-        <span className="preview-caption">
-          {pending === null
-            ? 'cannot reach the repo — publish state unknown'
-            : pending.length > 0
-              ? `${pending.length} image(s) to upload`
-              : 'everything is up to date'}
-        </span>
+        <span className="preview-caption">{pendingSummary}</span>
         {unresolved.length > 0 && pending?.length === 0 && (
           <span className="preview-caption">
             · {unresolved.length} description image(s) still need a URL — publish to write them
@@ -174,13 +182,15 @@ export function PublishPanel() {
               'urls.yaml and description.bbcode rewritten',
             ].join('\n')}
           </pre>
-          {result.committed && (
+          {result.cloneSynced && (
             <p className="hint">
-              The assets repo has new commits on <code>{status.branch}</code>, made through the API,
-              so your clone is behind and the next publish will refuse until it catches up. Every
-              project file on disk already matches what was committed, so{' '}
-              <code>git checkout -- {status.project}</code> then <code>git pull</code> discards
-              nothing.
+              Your local clone was fast-forwarded onto the pushed commit, so it is current and the
+              next publish will not be refused. Working-tree edits were left untouched.
+            </p>
+          )}
+          {!result.cloneSynced && result.cloneSyncNote && (
+            <p className="hint" style={{ whiteSpace: 'pre-wrap' }}>
+              {result.cloneSyncNote}
             </p>
           )}
         </>
